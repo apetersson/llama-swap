@@ -2,6 +2,7 @@
   import { hasListedModels } from "../../stores/api";
   import { createPlaygroundInterface } from "../../lib/playgroundInterface";
   import { transcribeAudio } from "../../lib/audioApi";
+  import { AUDIO_FILE_ACCEPT, AUDIO_FORMAT_LABEL, validateAudioFile } from "../../lib/audioFormats";
   import { playgroundStores } from "../../stores/playgroundActivity";
   import ModelSelector from "./ModelSelector.svelte";
   import EmptyState from "../EmptyState.svelte";
@@ -22,25 +23,13 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   let copied = $state(false);
 
-  const ACCEPTED_FORMATS = ['.mp3', '.wav', '.ogg'];
-
   let canTranscribe = $derived(selectedFile !== null && $selectedModelStore !== "" && !isTranscribing);
-
-  function validateFile(file: File): { valid: boolean; error?: string } {
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-
-    if (!ACCEPTED_FORMATS.includes(ext)) {
-      return { valid: false, error: 'Invalid file type. Accepted: MP3, WAV, OGG' };
-    }
-
-    return { valid: true };
-  }
 
   function handleFileSelect(event: Event) {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (file) {
-      const validation = validateFile(file);
+      const validation = validateAudioFile(file);
       if (validation.valid) {
         selectedFile = file;
         $error = null;
@@ -67,7 +56,7 @@
 
     const file = event.dataTransfer?.files[0];
     if (file) {
-      const validation = validateFile(file);
+      const validation = validateAudioFile(file);
       if (validation.valid) {
         selectedFile = file;
         $error = null;
@@ -179,7 +168,7 @@
           <div>
             <p class="mb-2">Drag and drop an audio file here</p>
             <p class="text-sm">or use the Browse button below</p>
-            <p class="text-xs mt-4">Accepted formats: MP3, WAV, OGG</p>
+            <p class="text-xs mt-4">Accepted formats: {AUDIO_FORMAT_LABEL}</p>
           </div>
         </div>
       {/if}
@@ -189,7 +178,7 @@
     <div class="shrink-0 flex gap-2">
       <input
         type="file"
-        accept=".mp3,.wav,.ogg"
+        accept={AUDIO_FILE_ACCEPT}
         class="hidden"
         onchange={handleFileSelect}
         bind:this={fileInput}

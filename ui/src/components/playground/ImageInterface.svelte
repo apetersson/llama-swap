@@ -200,6 +200,7 @@
       <Select.Content>
         <Select.Group>
           <Select.Label>Square</Select.Label>
+          <Select.Item value="256x256">256x256</Select.Item>
           <Select.Item value="512x512">512x512</Select.Item>
           <Select.Item value="1024x1024">1024x1024</Select.Item>
         </Select.Group>
