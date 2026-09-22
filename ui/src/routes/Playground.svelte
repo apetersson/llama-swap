@@ -5,6 +5,7 @@
   import AudioInterface from "../components/playground/AudioInterface.svelte";
   import SpeechInterface from "../components/playground/SpeechInterface.svelte";
   import RerankInterface from "../components/playground/RerankInterface.svelte";
+  import DecisionsInterface from "../components/playground/DecisionsInterface.svelte";
   import ConcurrencyInterface from "../components/playground/ConcurrencyInterface.svelte";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Tabs, TabsList, TabsTrigger } from "$lib/components/ui/tabs/index.js";
@@ -17,6 +18,7 @@
     speech: SpeechInterface,
     audio: AudioInterface,
     rerank: RerankInterface,
+    decisions: DecisionsInterface,
     concurrency: ConcurrencyInterface,
   };
 
