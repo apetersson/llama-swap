@@ -295,8 +295,16 @@ func newGpuTestMonitor(t *testing.T, f *fakeGpuCollector) (*Monitor, chan []GpuS
 	m.gpuStats = f.start
 	m.gpuWait = f.wait
 
-	_, gpuCh, unsub := m.Subscribe()
-	t.Cleanup(unsub)
+	// Fake restarts have no delay; the production one-slot subscription may
+	// drop intermediate samples before the test goroutine can consume them.
+	// Capture this finite sequence without changing production delivery policy.
+	gpuCh := make(chan []GpuStat, len(f.steps)+1)
+	m.gpuListeners[gpuCh] = struct{}{}
+	t.Cleanup(func() {
+		m.mutex.Lock()
+		defer m.mutex.Unlock()
+		delete(m.gpuListeners, gpuCh)
+	})
 	return m, gpuCh
 }
 
