@@ -1,5 +1,119 @@
 # Changelog
 
+## v262 (Oct 2, 2026)
+
+systemone models are mega hyped right now. This release adds support for
+/v1/systemone for that fast thinking goodness(?). Also requests missing a
+Content-Type will get one automatically added for the inference endpoints.
+
+- [PR #1197](https://github.com/mostlygeek/llama-swap/pull/1197) Add /v1/systemone endpoint to POST JSON routes: route llama.cpp's new /v1/systemone decision model endpoint to the model named in the JSON body (#1195) by [@mostlygeek](https://github.com/mostlygeek)
+- [PR #1194](https://github.com/mostlygeek/llama-swap/pull/1194) internal/server: accept JSON bodies with a missing or wrong Content-Type: fix a misleading "no model id could be identified" 404 when `curl -d` sent JSON as form-urlencoded; a middleware now relabels JSON object bodies as application/json and returns a 400 naming the expected format for unusable bodies (#1192) by [@mostlygeek](https://github.com/mostlygeek)
+
+## v261 (Sep 30, 2026)
+
+This release has a bunch of small compatibility improvements requested by the community.
+Also the changelog summaries have been changed to only AI for the list below. These notes at
+the top will be written by humans (or my dog) for humans. The AI's writing more correct but
+fuck it we have too much AI slop in our lives already.
+
+- [PR #1189](https://github.com/mostlygeek/llama-swap/pull/1189) Increase ComfyUI concurrency limit from 50 to 999: fix ComfyUI stuck on the splash screen via /comfyui because one tab makes more parallel requests than the old minimum of 50 allowed (#1188) by [@mostlygeek](https://github.com/mostlygeek)
+- [PR #1187](https://github.com/mostlygeek/llama-swap/pull/1187) docker/unified: compile sm_70 in the CUDA 12 image for V100: fix ik-llama-server aborting on V100 GPUs, where only sm_61 PTX without a WMMA flash-attention kernel was available (#1185) by [@mostlygeek](https://github.com/mostlygeek)
+- [PR #1158](https://github.com/mostlygeek/llama-swap/pull/1158) Hardware Detection: detect Intel GPUs on Linux via xpu-smi, including dedicated Arc memory, and read the Metal version on macOS across system_profiler key names by [@anantshri](https://github.com/anantshri)
+- [PR #1183](https://github.com/mostlygeek/llama-swap/pull/1183) docs/kb: document that tailcat.models accepts selectors: note that aliases, selectors, profile pins and peer model names are accepted, with a selector example by [@mostlygeek](https://github.com/mostlygeek)
+- [PR #1182](https://github.com/mostlygeek/llama-swap/pull/1182) Build audio.cpp with static eSpeak-ng and install phoneme data: link eSpeak-ng statically and ship its phoneme data so Kokoro, SanoTTS and Inflect phonemization works without a writable cache (#1181) by [@mostlygeek](https://github.com/mostlygeek)
+
+## v260
+
+This release fixes a crash at startup on macOS 27 with Apple M6 hardware
+(#1178). Hardware detection reads the CPU frequency through gopsutil, which
+expects a voltage-states5-sram property that is missing on M6. It passed the
+empty value straight to CFDataGetLength, which segfaulted before the server
+could start listening.
+
+As a temporary fix, gopsutil now points at a fork with the patch from
+shirou/gopsutil#2163, which checks for the missing property. This will be
+removed once the upstream project picks up the patch. Some Go dependencies
+were also updated as required by the newer gopsutil.
+
+- [PR #1180](https://github.com/mostlygeek/llama-swap/pull/1180) go.mod: use gopsutil PR #2163 to fix darwin/arm64 crash: replace gopsutil with a patched fork that guards the CPU frequency probe against a missing property on Apple M6
+
+## v259
+
+Logging is split into three separate streams: proxy, upstream and HTTP access
+logs. HTTP request lines used to be mixed in with the proxy log, which made it
+hard to search. They now have their own stream and their own tab in the log
+viewer. The logToStdout setting accepts a comma separated list of streams, such
+as "proxy,http", and the old values still work.
+
+Upgrading: log data has moved off GET /api/events to a new GET /api/events/logs
+endpoint. Pick streams with ?stream=proxy&stream=http. Tools that read logs
+from /api/events need to switch to the new endpoint.
+
+The UI sidebar can be resized by dragging its edge, and the width is
+remembered. The model page has a new header that shows the model name, a
+copyable ID, its state and how long it has been ready. The API also returns a
+new readySince field for models that are ready.
+
+The Hardware page now recognizes DGX Spark (GB10) systems. Before this, it
+could not count sockets on arm64, labeled the unified memory as dedicated
+memory it could not detect, showed only the efficiency cores and had no power
+figure. It now shows the system model, the hybrid CPU layout, shared memory
+and the nominal 140 W SoC power.
+
+The "install as app" prompt now works when apiKeys is set. The browser fetches
+the web app manifest without an API key, so it got a 401. The manifest is now
+served without auth, like the favicon.
+
+The release process now checks for Claude or Codex before generating the
+changelog and uses a newer model for it.
+
+- [PR #1177](https://github.com/mostlygeek/llama-swap/pull/1177) internal/server: serve web app manifest without requiring auth: let browsers fetch site.webmanifest when apiKeys is set so the install prompt appears
+- AGENTS.md: revise contribution guidelines for PRs: agents check pull requests and issues against CONTRIBUTING.md and ask when there is a problem
+- [PR #1172](https://github.com/mostlygeek/llama-swap/pull/1172) Refactor logging to support multiple streams and separate log endpoints: split proxy, upstream and HTTP logs, add /api/events/logs and allow a stream list in logToStdout
+- [PR #1163](https://github.com/mostlygeek/llama-swap/pull/1163) hw: detect DGX Spark (GB10) systems: report the system model, hybrid CPU, sockets, shared memory and nominal power on GB10 boxes by [@lemassykoi](https://github.com/lemassykoi)
+- [PR #1173](https://github.com/mostlygeek/llama-swap/pull/1173) ui: sidebar resize, model uptime tracking, small tweaks: drag to resize the sidebar and show how long each model has been ready
+- scripts/add-changelog.sh: use gpt-6-sol: update the model used to generate changelog entries with Codex
+- Makefile: detect harness before release: use Claude or Codex to generate the changelog and stop with an error when neither is installed
+
+## v258
+
+Tailcat is updated to v0.7.0 and now checks allowed clients in the HTTP
+handler. A client that is not allowed gets a 403 instead of a TCP timeout,
+which makes peer connections much easier to troubleshoot, and changes to
+tailcat.allow now apply on hot reload. A bug that dropped the connection when
+a node key was not recognized, which could leave clients hanging, now also
+returns a 403. Peer connections recover better when the server disconnects,
+and they wait longer for the first response header by default.
+
+Upgrading: an empty tailcat.allow list now denies every client. To keep
+allowing anyone to connect, set tailcat.allow to "\*".
+
+The output of cmdStop goes to the process log again, the same as cmd. This was
+lost in an earlier change (#790). A cmdStop that leaves a background child
+holding its output open can no longer hang the stop, and hitting that wait
+limit after a successful stop is logged as a warning instead of a failure.
+
+The Models page shows a status icon for each target of the selected profile,
+and those models can be loaded and unloaded from the profile pane.
+
+The unified Docker image adds mp3 support and native downloads to audio.cpp.
+The image build also stops failing on untagged main-branch commits. Those
+builds fell back to looking up the "latest" release through the GitHub API,
+which rate limited the shared CI runners. The installers now build the commit
+directly and fall back to git tags when the API is not available.
+
+Release notes on GitHub now use the CHANGELOG.md entry for the tag, and
+changelog entries are written as plain-language summaries that credit outside
+contributors.
+
+- release: improve generated changelog and release notes: generate readable changelog entries, credit outside contributors and use each entry as the GitHub release notes
+- [PR #1169](https://github.com/mostlygeek/llama-swap/pull/1169) internal/tailcat: various reliability and bug fixes: return a 403 for unrecognized node keys, improve peer reconnects and raise the default time to first header
+- [PR #1170](https://github.com/mostlygeek/llama-swap/pull/1170) ui: link profile targets and add load controls: show status and load/unload controls for profile target models by [@sousekd](https://github.com/sousekd)
+- [PR #1165](https://github.com/mostlygeek/llama-swap/pull/1165) internal/process: log cmdStop stdout and stderr: send cmdStop output to the process log and stop a lingering child from hanging it by [@dividehex](https://github.com/dividehex)
+- [PR #1166](https://github.com/mostlygeek/llama-swap/pull/1166) internal/tailcat: upgrade to tailcat v0.7.0 and use Server.Listen: check tailcat.allow per request, deny by default when empty and add a "\*" wildcard
+- [PR #1157](https://github.com/mostlygeek/llama-swap/pull/1157) docker/unified: audio.cpp add download and mp3 support: add mp3 and native download support
+- [PR #1156](https://github.com/mostlygeek/llama-swap/pull/1156) docker/unified: fix vllm-wrapper build on untagged commits: build untagged commits directly and fall back to git tags when the GitHub API is rate limited
+
 ## v257
 
 Adds Kubernetes-backed model lifecycle management with a Helm chart, readiness

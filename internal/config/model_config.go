@@ -9,7 +9,7 @@ import (
 const (
 	MODEL_CONFIG_DEFAULT_TTL   = -1
 	MODEL_CONFIG_DEFAULT_PROXY = "http://localhost:${PORT}"
-	comfyUIConcurrencyLimit    = 50
+	comfyUIConcurrencyLimit    = 999
 
 	// ComfyUIModelID identifies the model used by the /comfyui endpoint.
 	ComfyUIModelID = "comfyui_auto"
@@ -146,6 +146,11 @@ type ModelConfig struct {
 
 	// Timeout settings for proxy connections
 	Timeouts TimeoutsConfig `yaml:"timeouts"`
+
+	// DisableKeepAlives opens a new upstream connection for every request
+	// instead of reusing pooled ones. Works around upstreams that advertise
+	// keep-alive and then close the connection (#1205).
+	DisableKeepAlives bool `yaml:"disableKeepAlives"`
 
 	// Compatibility settings for upstream applications.
 	Compat CompatConfig `yaml:"compat"`
