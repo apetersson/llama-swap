@@ -448,6 +448,11 @@
                         "maxLength": 128,
                         "description": "Display name for the model. Used in v1/models API response."
                     },
+                    "namesByID": {
+                        "type": "object",
+                        "additionalProperties": { "type": "string", "maxLength": 128 },
+                        "description": "Display names in /v1/models keyed by this model's ID or existing aliases. Missing or blank names fall back to name. Does not create aliases or change routing."
+                    },
                     "description": {
                         "type": "string",
                         "default": "",
@@ -616,6 +621,11 @@
                                 "type": "boolean",
                                 "default": false,
                                 "description": "Whether the model supports the /v1/rerank endpoint."
+                            },
+                            "decisions": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Whether the model answers the typed decision contract at POST /upstream/<model>/predict instead of the chat API."
                             },
                             "context": {
                                 "type": "integer",

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 const (
@@ -30,7 +31,11 @@ type ModelCapConfig struct {
 	Out      []string `yaml:"out" json:"out,omitempty"`
 	Tools    bool     `yaml:"tools" json:"tools,omitempty"`
 	Reranker bool     `yaml:"reranker" json:"reranker,omitempty"`
-	Context  int      `yaml:"context" json:"context,omitempty"`
+	// Decisions marks a model that answers the typed decision contract
+	// (POST /upstream/<model>/predict) instead of the chat or rerank APIs.
+	// Nothing reports it upstream, so it is only ever set by hand.
+	Decisions bool `yaml:"decisions" json:"decisions,omitempty"`
+	Context   int  `yaml:"context" json:"context,omitempty"`
 
 	// DisableAuto turns off automatic capability discovery for this model.
 	// It is a switch, not a capability, so Empty ignores it and it is never
@@ -42,7 +47,7 @@ type ModelCapConfig struct {
 // DisableAuto is deliberately excluded: a block that only turns discovery off
 // still advertises nothing, so it must render as if it were absent.
 func (c ModelCapConfig) Empty() bool {
-	return len(c.In) == 0 && len(c.Out) == 0 && !c.Tools && !c.Reranker && c.Context == 0
+	return len(c.In) == 0 && len(c.Out) == 0 && !c.Tools && !c.Reranker && !c.Decisions && c.Context == 0
 }
 
 // Merge returns c with every field left at its zero value filled in from
@@ -67,6 +72,9 @@ func (c ModelCapConfig) Merge(auto ModelCapConfig) ModelCapConfig {
 	}
 	if !merged.Reranker {
 		merged.Reranker = auto.Reranker
+	}
+	if !merged.Decisions {
+		merged.Decisions = auto.Decisions
 	}
 	if merged.Context == 0 {
 		merged.Context = auto.Context
@@ -126,6 +134,8 @@ type ModelConfig struct {
 	// #179 for /v1/models
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
+	// NamesByID overrides listing names without changing shared process identity.
+	NamesByID map[string]string `yaml:"namesByID"`
 
 	// Limit concurrency of HTTP requests to process
 	ConcurrencyLimit int `yaml:"concurrencyLimit"`
@@ -160,6 +170,13 @@ type ModelConfig struct {
 
 	// Copy of HealthCheckTimeout from global config
 	HealthCheckTimeout int `yaml:"healthCheckTimeout"`
+}
+
+func (m ModelConfig) ListingName(id string) string {
+	if name := strings.TrimSpace(m.NamesByID[id]); name != "" {
+		return name
+	}
+	return m.Name
 }
 
 func (m *ModelConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {

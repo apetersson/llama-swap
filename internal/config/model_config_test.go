@@ -334,6 +334,37 @@ models:
 		mc := config.Models["model1"]
 		assert.True(t, mc.Capabilities.Empty())
 	})
+
+	t.Run("decisions true is not empty", func(t *testing.T) {
+		content := `
+models:
+  model1:
+    cmd: path/to/cmd --port ${PORT}
+    capabilities:
+      decisions: true
+`
+		config, err := LoadConfigFromReader(strings.NewReader(content))
+		assert.NoError(t, err)
+
+		mc := config.Models["model1"]
+		assert.False(t, mc.Capabilities.Empty())
+		assert.True(t, mc.Capabilities.Decisions)
+	})
+
+	t.Run("decisions false is empty", func(t *testing.T) {
+		content := `
+models:
+  model1:
+    cmd: path/to/cmd --port ${PORT}
+    capabilities:
+      decisions: false
+`
+		config, err := LoadConfigFromReader(strings.NewReader(content))
+		assert.NoError(t, err)
+
+		mc := config.Models["model1"]
+		assert.True(t, mc.Capabilities.Empty())
+	})
 }
 
 func TestConfig_ModelCapabilities_Validate(t *testing.T) {
@@ -591,11 +622,12 @@ models:
 
 func TestConfig_ModelCapabilities_Merge(t *testing.T) {
 	auto := ModelCapConfig{
-		In:       []string{"text", "image"},
-		Out:      []string{"text"},
-		Tools:    true,
-		Reranker: true,
-		Context:  4096,
+		In:        []string{"text", "image"},
+		Out:       []string{"text"},
+		Tools:     true,
+		Reranker:  true,
+		Decisions: true,
+		Context:   4096,
 	}
 
 	t.Run("fills_every_unset_field", func(t *testing.T) {
@@ -604,6 +636,7 @@ func TestConfig_ModelCapabilities_Merge(t *testing.T) {
 		assert.Equal(t, auto.Out, merged.Out)
 		assert.True(t, merged.Tools)
 		assert.True(t, merged.Reranker)
+		assert.True(t, merged.Decisions)
 		assert.Equal(t, 4096, merged.Context)
 	})
 

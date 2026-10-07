@@ -66,7 +66,7 @@ func renderCapabilities(caps config.ModelCapConfig) (arch map[string]any, capsMa
 	}
 
 	// Build capabilities map only if there's something to put in it.
-	if hasIn || hasOut || caps.Tools || caps.Reranker {
+	if hasIn || hasOut || caps.Tools || caps.Reranker || caps.Decisions {
 		capsMap = make(map[string]any)
 	}
 
@@ -97,6 +97,10 @@ func renderCapabilities(caps config.ModelCapConfig) (arch map[string]any, capsMa
 
 	if caps.Reranker {
 		capsMap["reranker"] = true
+	}
+
+	if caps.Decisions {
+		capsMap["decisions"] = true
 	}
 
 	if caps.Context > 0 {
@@ -207,14 +211,14 @@ func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
 		// Resolved once and reused for the aliases, which describe the same
 		// upstream and must not disagree with the model they point at.
 		caps := s.resolveCapabilities(r.Context(), id, mc)
-		data = append(data, newRecord(id, mc.Name, mc.Description, mc.Metadata, caps, status, internalMetadata))
+		data = append(data, newRecord(id, mc.ListingName(id), mc.Description, mc.Metadata, caps, status, internalMetadata))
 
 		if s.cfg.IncludeAliasesInList {
 			for _, alias := range mc.Aliases {
 				if alias := strings.TrimSpace(alias); alias != "" {
 					data = append(data, newRecord(
 						alias,
-						mc.Name,
+						mc.ListingName(alias),
 						mc.Description,
 						mc.Metadata,
 						caps,

@@ -2,48 +2,50 @@
   import { playgroundModels } from "../../stores/api";
   import { createPlaygroundInterface } from "../../lib/playgroundInterface";
   import { formatDuration } from "../../lib/format";
+  import { matchesModel } from "../../lib/modelUtils";
   import { predictLaya, type LayaQuestion, type LayaResponse } from "../../lib/layaApi";
+  import {
+    DECISION_PRESETS,
+    DEFAULT_DECISION_PRESET_ID,
+    decisionPresetById,
+    formatPresetState,
+    formatPresetQuestions,
+  } from "../../lib/decisionPresets";
   import { playgroundStores } from "../../stores/playgroundActivity";
   import EmptyState from "../EmptyState.svelte";
+  import ModelSelector from "./ModelSelector.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import * as Select from "$lib/components/ui/select/index.js";
 
-  const iface = createPlaygroundInterface("playground-decisions", playgroundStores.decisionsLoading);
+  /** Every registered decision engine sets capabilities.decisions in its config. */
+  const decisionsMatch = { capabilities: ["decisions"] };
+
+  const iface = createPlaygroundInterface("playground-decisions-model", playgroundStores.decisionsLoading);
+  const selectedModel = iface.selectedModel;
   const busy = iface.busy;
   const error = iface.error;
 
-  const defaultState = "I was charged twice. Please refund the duplicate payment.";
-  const defaultQuestions: Record<string, LayaQuestion> = {
-    department: {
-      type: "choice",
-      instructions: "Which department should handle this request?",
-      criteria: {
-        billing: "payments, invoices and refunds",
-        technical: "software bugs and outages",
-        other: "everything else",
-      },
-    },
-    refund_requested: {
-      type: "noul",
-      instructions: "Does the customer explicitly request a refund?",
-    },
-    urgency: {
-      type: "score",
-      instructions: "How urgent is this request?",
-      criteria: ["low", "normal", "critical"],
-    },
-  };
+  const defaultPreset = decisionPresetById(DEFAULT_DECISION_PRESET_ID)!;
+  const defaultState = formatPresetState(defaultPreset.state);
+  const defaultQuestions = formatPresetQuestions(defaultPreset.questions);
 
   let stateText = $state(defaultState);
-  let questionsText = $state(JSON.stringify(defaultQuestions, null, 2));
+  let questionsText = $state(defaultQuestions);
+  let presetId = $state<string>(defaultPreset.id);
   let result = $state<LayaResponse | null>(null);
   let jsonError = $state<string | null>(null);
   let isBusy = $derived($busy);
-  let hasLaya = $derived($playgroundModels.some((model) => model.id === "laya" || model.aliases?.includes("laya")));
+  let hasDecisionsModel = $derived(
+    $playgroundModels.some((model) => !model.unlisted && matchesModel(model, decisionsMatch)),
+  );
   let answerEntries = $derived(result ? Object.entries(result.answers) : []);
-  let canSubmit = $derived(hasLaya && !isBusy && stateText.trim() !== "" && questionsText.trim() !== "");
-  let isCleared = $derived(stateText === defaultState && questionsText === JSON.stringify(defaultQuestions, null, 2) && !result && !$error);
+  let canSubmit = $derived(
+    !!$selectedModel && !isBusy && stateText.trim() !== "" && questionsText.trim() !== "",
+  );
+  let isCleared = $derived(stateText === defaultState && questionsText === defaultQuestions && !result && !$error);
+  let selectedPreset = $derived(decisionPresetById(presetId));
 
   function formatTiming(ms: number | undefined): string {
     return ms === undefined ? "—" : formatDuration(Math.max(0, ms), { precision: 1, subSecondMs: true });
@@ -83,27 +85,66 @@
       return;
     }
     await iface.run(async (signal) => {
-      result = await predictLaya({ state: parseState(stateText), questions }, signal);
+      result = await predictLaya($selectedModel, { state: parseState(stateText), questions }, signal);
     });
   }
 
-  function clear() {
-    stateText = defaultState;
-    questionsText = JSON.stringify(defaultQuestions, null, 2);
+  function applyPreset(id: string) {
+    const preset = decisionPresetById(id);
+    if (!preset) return;
+    presetId = preset.id;
+    stateText = formatPresetState(preset.state);
+    questionsText = formatPresetQuestions(preset.questions);
     result = null;
     jsonError = null;
     $error = null;
+  }
+
+  function clear() {
+    applyPreset(presetId);
   }
 </script>
 
 <div class="flex h-full flex-col gap-4 overflow-hidden">
   <div class="shrink-0 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
-    <span class="font-medium">Laya Decisions</span>
-    <span class="text-muted-foreground"> · structured choice, score and boolean probabilities</span>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span>
+        <span class="font-medium">Laya Decisions</span>
+        <span class="text-muted-foreground"> · structured choice, score and boolean probabilities</span>
+      </span>
+      <div class="flex min-w-0 flex-1 basis-64 items-center justify-end gap-2">
+        <ModelSelector
+          bind:value={$selectedModel}
+          placeholder="Select a decisions model..."
+          disabled={isBusy}
+          match={decisionsMatch}
+        />
+        <Label for="laya-preset" class="text-muted-foreground text-xs font-normal">Preset</Label>
+        <Select.Root
+          type="single"
+          value={presetId}
+          onValueChange={(value) => value && applyPreset(value)}
+        >
+          <Select.Trigger id="laya-preset" size="sm" class="h-8 w-56">
+            {selectedPreset?.label ?? "Choose an example..."}
+          </Select.Trigger>
+          <Select.Content class="max-h-[60vh]">
+            {#each DECISION_PRESETS as preset (preset.id)}
+              <Select.Item value={preset.id}>
+                <span class="font-medium">{preset.label}</span>
+              </Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
+      </div>
+    </div>
+    {#if selectedPreset}
+      <p class="text-muted-foreground mt-1 text-xs">{selectedPreset.description}</p>
+    {/if}
   </div>
 
-  {#if !hasLaya}
-    <EmptyState message="Laya is not configured. Add the laya model to llama-swap to use decisions." />
+  {#if !hasDecisionsModel}
+    <EmptyState message="No decisions model is configured. Add one with capabilities.decisions: true in llama-swap to use decisions." />
   {:else}
     <div class="grid min-h-0 flex-1 gap-4 overflow-auto lg:grid-cols-2">
       <div class="flex min-h-0 flex-col gap-2">

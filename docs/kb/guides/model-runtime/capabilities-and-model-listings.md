@@ -2,8 +2,8 @@
 title: Model capabilities and model listings
 summary: Advertise images, tools and context length in /v1/models, automatically or by hand.
 category: guides
-tags: [capabilities, models, tools, vision, context, autodetect, llama-server, vllm, halogen, playground]
-config_keys: [models.*.capabilities, models.*.capabilities.disableAuto, store.path]
+tags: [capabilities, models, tools, vision, context, reranker, decisions, autodetect, llama-server, vllm, halogen, playground]
+config_keys: [models.*.capabilities, models.*.capabilities.disableAuto, models.*.capabilities.decisions, models.*.namesByID, store.path]
 updated: 2026-09-22
 ---
 
@@ -16,6 +16,28 @@ particular `tools: true` makes the listing report
 `capabilities.function_calling: true` and advertise `tools` and `tool_choice`
 as supported parameters. It does not enable tool calling by itself; the model
 still needs a compatible chat template and runtime.
+
+## Names for endpoints sharing a process
+
+`name` describes the shared model process. Use `namesByID` to give the canonical
+ID and existing aliases distinct display names in `/v1/models`:
+
+```yaml
+includeAliasesInList: true
+models:
+  speech:
+    cmd: speech-server
+    name: Speech Service
+    aliases: [speech-plain]
+    namesByID:
+      speech: Transcription + Speaker Labels
+      speech-plain: Transcription
+```
+
+This changes listing names only. API IDs, routing, capabilities and process
+lifecycle remain shared. Missing or blank overrides fall back to `name`.
+Unknown IDs do not create endpoints; declare aliases separately. Activity and
+process views may still show the canonical ID rather than the requested alias.
 
 ## Automatic discovery
 
@@ -90,6 +112,23 @@ models:
 Set only what the model really supports. A false claim makes clients send
 requests that fail or get ignored.
 
+The two flags nothing can discover are `reranker` and `decisions`: a model is
+only ever a reranker or a typed-decision endpoint because its `cmd` starts a
+server that says so, and neither speaks a protocol where that could be
+reported. Set them by hand.
+
+```yaml
+models:
+  laya:
+    cmd: laya-venv/bin/python laya_service.py
+    proxy: http://127.0.0.1:18084
+    capabilities:
+      disableAuto: true
+      in: [text]
+      out: [text]
+      decisions: true   # answers POST /upstream/laya/predict
+```
+
 ## Turning discovery off
 
 A field set to its zero value (`false`, `0`, `[]`) cannot be told apart from
@@ -122,6 +161,7 @@ first, under "Matching Capabilities":
 | Speech | `in` has `text`, `out` has `audio` |
 | Transcription | `in` has `audio`, `out` has `text` |
 | Rerank | `reranker: true` |
+| Decisions | `decisions: true` |
 | Help's Docs agent | `tools: true` |
 
 Discovery fills most of this in on its own once a model has been loaded, so a

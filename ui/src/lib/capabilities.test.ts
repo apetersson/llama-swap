@@ -58,6 +58,7 @@ describe("listCapabilityBadges", () => {
         vision: true,
         reranker: true,
         audio_speech: true,
+        decisions: true,
       },
     });
     expect(badges.map((b) => b.key)).toEqual([
@@ -65,6 +66,7 @@ describe("listCapabilityBadges", () => {
       "audio_speech",
       "function_calling",
       "reranker",
+      "decisions",
     ]);
   });
 
@@ -108,6 +110,7 @@ describe("listCapabilityBadges", () => {
       "image_to_image",
       "function_calling",
       "reranker",
+      "decisions",
     ]) {
       expect(capabilityLabels[key]).toBeTruthy();
     }
@@ -124,10 +127,11 @@ describe("listCapabilityBadges", () => {
         image_to_image: true,
         function_calling: true,
         reranker: true,
+        decisions: true,
       },
     });
-    // 7 capabilities + context
-    expect(badges.length).toBe(8);
+    // 8 capabilities + context
+    expect(badges.length).toBe(9);
     for (const badge of badges) {
       expect(capabilityBadgeClass[badge.key], `missing color for ${badge.key}`).toBeTruthy();
     }

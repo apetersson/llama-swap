@@ -562,6 +562,11 @@ models:
       # - default: false
       reranker: false
 
+      # decisions: the model answers typed decisions at
+      # /upstream/<model>/predict (choice, score, noul) instead of chat
+      # - default: false
+      decisions: false
+
       # context: the maximum token context length supported
       # - default: 0
       # - must be an integer > 0

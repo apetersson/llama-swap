@@ -1,3 +1,4 @@
+import { modelServerPath } from "./modelUtils";
 import { playgroundSessionHeaders } from "./playgroundSession";
 
 export type LayaQuestion = {
@@ -16,10 +17,18 @@ export type LayaAnswer = {
   choice?: string;
   score?: number;
   noul?: number;
+  /** Score questions only: level index -> level label, as sent in `criteria`. */
   legend?: Record<string, string>;
   probabilities?: Record<string, number>;
   confidence: number;
   action?: { act_probability: number };
+  // The Core ML registration reports these; they are absent on the PyTorch one.
+  /** Real tokens in the encoded prompt. */
+  tokens?: number;
+  /** Fixed sequence length of the model bucket that ran this question. */
+  bucket?: number;
+  /** Whether the state text was cut to fit the bucket. */
+  state_was_truncated?: boolean;
 };
 
 export type LayaResponse = {
@@ -32,7 +41,7 @@ export type LayaResponse = {
 export type LayaTimings = {
   /** Time waiting for the adapter's serialized inference lock. */
   queue_ms?: number;
-  /** Time spent inside laya.Agent.predict. */
+  /** Time spent inside the decision model. */
   model_ms?: number;
   /** Adapter-side request time, excluding the browser/network leg. */
   total_ms?: number;
@@ -40,12 +49,18 @@ export type LayaTimings = {
   client_ms?: number;
 };
 
+/**
+ * Ask one of the registered decision models. Several engines serve the same
+ * contract (the PyTorch `laya` and the Core ML `laya-fluiduse`), so the model
+ * is part of the request rather than baked into the path.
+ */
 export async function predictLaya(
+  model: string,
   request: LayaRequest,
   signal?: AbortSignal,
 ): Promise<LayaResponse> {
   const started = performance.now();
-  const response = await fetch("/upstream/laya/predict", {
+  const response = await fetch(`${modelServerPath(model)}predict`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...playgroundSessionHeaders },
     body: JSON.stringify(request),
